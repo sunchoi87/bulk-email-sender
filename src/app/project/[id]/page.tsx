@@ -587,11 +587,20 @@ export default function ProjectPage({
   );
 
   // ── Sending ────────────────────────────────────────────────────
+  const [sendProgress, setSendProgress] = useState(0);
+
   const handleSend = useCallback(
     async (isTest: boolean) => {
       setSending(true);
       setSendResults(null);
       setSendSummary(null);
+      setSendProgress(0);
+
+      // Simulate progress while waiting for server response
+      const total = isTest ? 1 : recipients.length;
+      const progressInterval = setInterval(() => {
+        setSendProgress((prev) => Math.min(prev + 1, total - 1));
+      }, 1200);
 
       try {
         const res = await fetch(`/api/projects/${projectId}/send`, {
@@ -614,15 +623,21 @@ export default function ProjectPage({
           }),
         });
 
+        clearInterval(progressInterval);
+        setSendProgress(total);
+
         const result = await res.json();
         if (result.error) {
-          alert(`에러: ${result.error}`);
+          const errorMsg = typeof result.error === "string" ? result.error : JSON.stringify(result.error);
+          alert(`에러: ${errorMsg}`);
         } else {
           setSendResults(result.results);
           setSendSummary(result.summary);
         }
       } catch (err) {
-        alert(`발송 실패: ${err instanceof Error ? err.message : "Unknown"}`);
+        clearInterval(progressInterval);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        alert(`발송 실패: ${errorMsg}`);
       } finally {
         setSending(false);
       }
@@ -1545,20 +1560,55 @@ export default function ProjectPage({
               </div>
             </div>
 
-            {!sendSummary && (
+            {!sendSummary && !sending && (
               <div className="bg-red-50/80 border border-red-200/60 rounded-2xl p-5">
                 <p className="text-sm text-red-800 font-medium mb-3">
                   {recipients.length}명에게 발송합니다. 취소할 수 없습니다.
                 </p>
                 <button
                   onClick={() => handleSend(false)}
-                  disabled={sending}
-                  className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-red-700 disabled:opacity-50 active:scale-[0.98] shadow-sm shadow-red-200"
+                  className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-red-700 active:scale-[0.98] shadow-sm shadow-red-200"
                 >
-                  {sending
-                    ? `발송 중...`
-                    : `${recipients.length}명에게 발송하기`}
+                  {recipients.length}명에게 발송하기
                 </button>
+              </div>
+            )}
+
+            {sending && !sendSummary && (
+              <div className="bg-blue-50/80 border border-blue-200/60 rounded-2xl p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm font-semibold text-blue-800">
+                    발송 중... {sendProgress}/{recipients.length}
+                  </span>
+                </div>
+                <div className="w-full bg-blue-200 rounded-full h-2.5 mb-3">
+                  <div
+                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.max(5, (sendProgress / recipients.length) * 100)}%`,
+                    }}
+                  />
+                </div>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {recipients.map((r, i) => (
+                    <div
+                      key={r.id}
+                      className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded ${
+                        i < sendProgress
+                          ? "bg-green-50 text-green-700"
+                          : i === sendProgress
+                          ? "bg-blue-100 text-blue-700 font-medium"
+                          : "text-gray-400"
+                      }`}
+                    >
+                      <span>
+                        {i < sendProgress ? "V" : i === sendProgress ? "..." : ""}
+                      </span>
+                      <span>{r.name} &lt;{r.email}&gt;</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

@@ -1,9 +1,9 @@
 export const DEFAULT_SIGNATURE = `--
-<br><br>
+<br>
 <table cellpadding="0" cellspacing="0" style="font-family: Arial, sans-serif; font-size: 13px; color: #333;">
   <tr>
-    <td style="padding-bottom: 10px;">
-      <img src="https://2080.ventures/logo.png" alt="2080 VENTURES" style="height: 50px;" onerror="this.outerHTML='<b style=\\'font-size:20px;\\'>2080<br>VENTURES</b>'">
+    <td style="padding-bottom: 8px;">
+      <b style="font-size: 16px; letter-spacing: 1px;">2080 VENTURES</b>
     </td>
   </tr>
   <tr>

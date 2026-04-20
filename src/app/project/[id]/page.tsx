@@ -448,7 +448,13 @@ export default function ProjectPage({
       });
     }
 
-    setRecipients((prev) => [...prev, ...newRecipients]);
+    setRecipients((prev) => {
+      const existingEmails = new Set(prev.map((r) => r.email.toLowerCase()));
+      const unique = newRecipients.filter(
+        (r) => !existingEmails.has(r.email.toLowerCase())
+      );
+      return [...prev, ...unique];
+    });
     setBulkInput("");
   }, [bulkInput, customFieldNames, saveProject]);
 
@@ -552,7 +558,13 @@ export default function ProjectPage({
       });
     }
 
-    setRecipients((prev) => [...prev, ...newRecipients]);
+    setRecipients((prev) => {
+      const existingEmails = new Set(prev.map((r) => r.email.toLowerCase()));
+      const unique = newRecipients.filter(
+        (r) => !existingEmails.has(r.email.toLowerCase())
+      );
+      return [...prev, ...unique];
+    });
     setSheetData(null);
     setSheetUrl("");
   }, [sheetData, columnMap, customFieldNames, saveProject]);

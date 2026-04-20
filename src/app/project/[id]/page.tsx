@@ -334,49 +334,118 @@ export default function ProjectPage({
     [tab, recipients, saveRecipientsToDb, projectId]
   );
 
-  // Bulk input parsing
+  // Bulk input parsing — auto-detects headers and creates custom fields
   const parseBulkInput = useCallback(() => {
     if (!bulkInput.trim()) return;
     const lines = bulkInput.trim().split("\n");
-    const newRecipients: Recipient[] = [];
+    if (lines.length === 0) return;
 
-    for (const line of lines) {
-      const parts = line.split(/\t|,/).map((p) => p.trim());
-      if (parts.length < 1 || !parts[0]) continue;
+    // Parse all lines into arrays
+    const allParts = lines.map((line) =>
+      line.split(/\t/).map((p) => p.trim())
+    );
 
-      let email = "",
-        name = "",
-        company = "";
-      if (parts[0].includes("@")) {
-        email = parts[0];
-        name = parts[1] || "";
-        company = parts[2] || "";
-      } else {
-        name = parts[0];
-        email = parts[1] || "";
-        company = parts[2] || "";
+    // Check if first row is a header (contains email-related keyword, no @ in any cell)
+    const emailKeywords = ["이메일", "email", "e-mail", "mail"];
+    const nameKeywords = ["이름", "성명", "name", "담당자"];
+    const firstRow = allParts[0];
+    const isHeader =
+      firstRow.some((c) =>
+        emailKeywords.some((k) => c.toLowerCase().includes(k))
+      ) && !firstRow.some((c) => c.includes("@"));
+
+    let headers: string[] | null = null;
+    let dataRows = allParts;
+
+    if (isHeader) {
+      headers = firstRow;
+      dataRows = allParts.slice(1);
+    }
+
+    // Auto-detect column indices for name and email
+    let nameIdx = -1;
+    let emailIdx = -1;
+
+    if (headers) {
+      // Use header keywords to find name/email columns
+      headers.forEach((h, i) => {
+        const lower = h.toLowerCase();
+        if (emailIdx === -1 && emailKeywords.some((k) => lower.includes(k)))
+          emailIdx = i;
+        if (nameIdx === -1 && nameKeywords.some((k) => lower.includes(k)))
+          nameIdx = i;
+      });
+    }
+
+    // Fallback: auto-detect by content
+    if (emailIdx === -1 && dataRows.length > 0) {
+      const firstData = dataRows[0];
+      for (let i = 0; i < firstData.length; i++) {
+        if (firstData[i].includes("@")) {
+          emailIdx = i;
+          break;
+        }
       }
+    }
+    if (nameIdx === -1) {
+      // Name is typically the column before email, or column 0
+      nameIdx = emailIdx > 0 ? 0 : -1;
+    }
+
+    // All other columns become custom fields
+    const extraFieldDefs: { index: number; name: string }[] = [];
+    if (headers) {
+      headers.forEach((h, i) => {
+        if (i !== nameIdx && i !== emailIdx && h) {
+          extraFieldDefs.push({ index: i, name: h });
+        }
+      });
+    } else if (dataRows[0]) {
+      // No headers — name columns as 열1, 열2...
+      dataRows[0].forEach((_, i) => {
+        if (i !== nameIdx && i !== emailIdx) {
+          extraFieldDefs.push({ index: i, name: `열${i + 1}` });
+        }
+      });
+    }
+
+    // Register new custom fields
+    const newFieldNames = extraFieldDefs
+      .map((f) => f.name)
+      .filter((n) => !customFieldNames.includes(n));
+    const allCustomFields = [...customFieldNames, ...newFieldNames];
+    if (newFieldNames.length > 0) {
+      setCustomFieldNames(allCustomFields);
+      saveProject({ customFieldNames: allCustomFields });
+    }
+
+    // Parse data rows
+    const newRecipients: Recipient[] = [];
+    for (const parts of dataRows) {
+      const email = emailIdx >= 0 ? (parts[emailIdx] || "").trim() : "";
+      if (!email || !email.includes("@")) continue;
+
+      const name = nameIdx >= 0 ? (parts[nameIdx] || "").trim() : "";
 
       const customFields: Record<string, string> = {};
-      customFieldNames.forEach((field, i) => {
-        customFields[field] = parts[3 + i] || "";
-      });
-
-      if (email) {
-        newRecipients.push({
-          id: crypto.randomUUID(),
-          email,
-          name,
-          company,
-          bcc: "",
-          customFields,
-        });
+      for (const cf of allCustomFields) {
+        const def = extraFieldDefs.find((f) => f.name === cf);
+        customFields[cf] = def ? (parts[def.index] || "").trim() : "";
       }
+
+      newRecipients.push({
+        id: crypto.randomUUID(),
+        email,
+        name,
+        company: "",
+        bcc: "",
+        customFields,
+      });
     }
 
     setRecipients((prev) => [...prev, ...newRecipients]);
     setBulkInput("");
-  }, [bulkInput, customFieldNames]);
+  }, [bulkInput, customFieldNames, saveProject]);
 
   // ── Google Sheets import ───────────────────────────────────────
   const fetchSheet = useCallback(async () => {

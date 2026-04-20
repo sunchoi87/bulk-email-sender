@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import { DEFAULT_SIGNATURE } from "@/lib/default-signature";
 
 // ── Types ──────────────────────────────────────────────────────────
 interface Recipient {
@@ -42,6 +43,7 @@ interface ProjectData {
   globalBcc: string;
   subject: string;
   body: string;
+  signature: string;
   customFieldNames: string[];
 }
 
@@ -94,6 +96,8 @@ export default function ProjectPage({
   const [globalBcc, setGlobalBcc] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [signature, setSignature] = useState(DEFAULT_SIGNATURE);
+  const [showSignatureEditor, setShowSignatureEditor] = useState(false);
   const [customFieldNames, setCustomFieldNames] = useState<string[]>([]);
 
   // Recipients
@@ -155,6 +159,7 @@ export default function ProjectPage({
       setGlobalBcc(proj.globalBcc || "");
       setSubject(proj.subject || "");
       setBody(proj.body || "");
+      setSignature(proj.signature || DEFAULT_SIGNATURE);
       setCustomFieldNames(proj.customFieldNames || []);
       setRecipients(
         recips.map(
@@ -583,7 +588,7 @@ export default function ProjectPage({
           body: JSON.stringify({
             recipients,
             subject,
-            body: body.replace(/\n/g, "<br>"),
+            body: body.replace(/\n/g, "<br>") + (signature ? "<br><br>" + signature : ""),
             senderName,
             globalBcc,
             attachments: attachments.map((a) => ({
@@ -610,7 +615,7 @@ export default function ProjectPage({
         setSending(false);
       }
     },
-    [recipients, subject, body, senderName, globalBcc, attachments, projectId]
+    [recipients, subject, body, signature, senderName, globalBcc, attachments, projectId]
   );
 
   // ── Preview helpers ────────────────────────────────────────────
@@ -1279,6 +1284,61 @@ export default function ProjectPage({
               )}
             </div>
 
+            {/* Signature */}
+            <div className="bg-white border border-gray-200/60 rounded-2xl shadow-sm overflow-hidden">
+              <div
+                className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200/60 cursor-pointer"
+                onClick={() => setShowSignatureEditor(!showSignatureEditor)}
+              >
+                <span className="text-sm font-semibold text-gray-700">
+                  서명 {signature ? "✓" : ""}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {showSignatureEditor ? "접기 ▲" : "편집 ▼"}
+                </span>
+              </div>
+              {!showSignatureEditor && signature && (
+                <div
+                  className="px-5 py-3 text-xs text-gray-500 max-h-24 overflow-hidden"
+                  dangerouslySetInnerHTML={{ __html: signature }}
+                />
+              )}
+              {showSignatureEditor && (
+                <div className="p-5 space-y-3">
+                  <textarea
+                    value={signature}
+                    onChange={(e) => {
+                      setSignature(e.target.value);
+                      debouncedSave({ signature: e.target.value });
+                    }}
+                    rows={12}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-xs font-mono leading-relaxed bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    placeholder="HTML 서명을 입력하세요"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setSignature(DEFAULT_SIGNATURE);
+                        debouncedSave({ signature: DEFAULT_SIGNATURE });
+                      }}
+                      className="text-xs px-3 py-1.5 border border-gray-200 rounded-xl hover:bg-gray-50 font-medium"
+                    >
+                      기본 서명 복원
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSignature("");
+                        debouncedSave({ signature: "" });
+                      }}
+                      className="text-xs px-3 py-1.5 border border-gray-200 rounded-xl hover:bg-gray-50 font-medium text-red-500"
+                    >
+                      서명 제거
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-3">
               <button
                 onClick={() => handleTabChange(0)}
@@ -1360,7 +1420,7 @@ export default function ProjectPage({
                     className="px-6 py-4 text-sm leading-relaxed"
                     dangerouslySetInnerHTML={{
                       __html: interpolatePreview(
-                        body.replace(/\n/g, "<br>"),
+                        body.replace(/\n/g, "<br>") + (signature ? "<br><br>" + signature : ""),
                         getPreviewVariables(recipients[previewIndex])
                       ),
                     }}

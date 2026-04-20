@@ -14,6 +14,7 @@ export const projects = pgTable("email_projects", {
   globalBcc: text("global_bcc").default(""),
   subject: text("subject").default(""),
   body: text("body").default(""),
+  signature: text("signature").default(""),
   customFieldNames: jsonb("custom_field_names").$type<string[]>().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

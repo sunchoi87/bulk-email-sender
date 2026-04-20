@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { DEFAULT_SIGNATURE } from "@/lib/default-signature";
 
 interface Project {
   id: string;
@@ -43,6 +44,7 @@ export default function Home() {
         name: newName,
         senderName: newSender,
         globalBcc: newBcc,
+        signature: DEFAULT_SIGNATURE,
       }),
     });
     const project = await res.json();

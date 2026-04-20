@@ -127,7 +127,7 @@ export async function POST(request: Request) {
 
     // Slice columns, clean headers (replace newlines, trim)
     const headers = rawHeaders.slice(firstCol, lastCol + 1).map((h) =>
-      h.trim().replace(/\n/g, " ")
+      cleanCell(h)
     );
 
     // For columns with empty headers but data, generate a label
@@ -152,7 +152,7 @@ export async function POST(request: Request) {
       .map((row) =>
         row
           .slice(firstCol, firstCol + headers.length)
-          .map((c) => c.trim().replace(/\n/g, " "))
+          .map((c) => cleanCell(c))
       )
       .filter((row) => row.some((cell) => cell));
 
@@ -173,6 +173,23 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+// Clean cell value: trim whitespace/tabs, remove stray quotes, normalize
+function cleanCell(value: string): string {
+  let v = value.trim().replace(/\n/g, " ");
+  // Remove wrapping stray quotes like "value" → value
+  if (v.startsWith('"') && v.endsWith('"') && v.length >= 2) {
+    v = v.slice(1, -1).trim();
+  }
+  // Remove leading-only or trailing-only stray quotes
+  if (v.startsWith('"') && !v.includes('"', 1)) {
+    v = v.slice(1).trim();
+  }
+  if (v.endsWith('"') && v.indexOf('"') === v.length - 1) {
+    v = v.slice(0, -1).trim();
+  }
+  return v;
 }
 
 // CSV parser handling quoted fields with commas, newlines, and escaped quotes

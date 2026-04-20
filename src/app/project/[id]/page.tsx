@@ -225,18 +225,27 @@ export default function ProjectPage({
   // ── Save recipients to DB ─────────────────────────────────────
   const saveRecipientsToDb = useCallback(
     async (newRecipients: Recipient[]) => {
-      // Delete all then re-insert (simple approach)
+      // Deduplicate by email before saving
+      const seen = new Set<string>();
+      const deduped = newRecipients.filter((r) => {
+        const key = r.email.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      // Delete all then re-insert
       await fetch(`/api/projects/${projectId}/recipients`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
 
-      if (newRecipients.length > 0) {
+      if (deduped.length > 0) {
         const res = await fetch(`/api/projects/${projectId}/recipients`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ recipients: newRecipients }),
+          body: JSON.stringify({ recipients: deduped }),
         });
         const saved = await res.json();
         // Update with DB-generated IDs

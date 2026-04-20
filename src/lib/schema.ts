@@ -35,6 +35,14 @@ export const recipients = pgTable("email_recipients", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const templates = pgTable("email_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  subject: text("subject").notNull().default(""),
+  body: text("body").notNull().default(""),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const sendHistory = pgTable("email_send_history", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id")

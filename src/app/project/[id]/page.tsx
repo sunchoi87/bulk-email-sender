@@ -26,6 +26,14 @@ interface SendResult {
   error?: string;
 }
 
+interface Template {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+  createdAt: string;
+}
+
 interface HistoryEntry {
   id: string;
   recipientEmail: string;
@@ -137,6 +145,11 @@ export default function ProjectPage({
 
   // History
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+
+  // Templates
+  const [savedTemplates, setSavedTemplates] = useState<Template[]>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templateName, setTemplateName] = useState("");
   const [historyLoading, setHistoryLoading] = useState(false);
 
   // ── Load project data ──────────────────────────────────────────
@@ -643,6 +656,46 @@ export default function ProjectPage({
       }
     },
     [recipients, subject, body, signature, senderName, globalBcc, attachments, projectId]
+  );
+
+  // ── Templates ───────────────────────────────────────────────────
+  const loadTemplates = useCallback(async () => {
+    const res = await fetch("/api/templates");
+    const data = await res.json();
+    setSavedTemplates(data);
+  }, []);
+
+  const saveTemplate = useCallback(async () => {
+    if (!templateName.trim()) return;
+    await fetch("/api/templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: templateName, subject, body }),
+    });
+    setTemplateName("");
+    loadTemplates();
+  }, [templateName, subject, body, loadTemplates]);
+
+  const deleteTemplate = useCallback(
+    async (id: string) => {
+      await fetch("/api/templates", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      loadTemplates();
+    },
+    [loadTemplates]
+  );
+
+  const applyTemplate = useCallback(
+    (t: Template) => {
+      setSubject(t.subject);
+      setBody(t.body);
+      debouncedSave({ subject: t.subject, body: t.body });
+      setShowTemplates(false);
+    },
+    [debouncedSave]
   );
 
   // ── Preview helpers ────────────────────────────────────────────
@@ -1184,7 +1237,83 @@ export default function ProjectPage({
         {/* ── TAB 1: Email Compose ────────────────────────────── */}
         {tab === 1 && (
           <div className="space-y-6">
-            <h2 className="text-lg font-semibold text-gray-900">이메일 작성</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">이메일 작성</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    loadTemplates();
+                    setShowTemplates(!showTemplates);
+                  }}
+                  className="text-sm px-3.5 py-1.5 border border-gray-200 rounded-xl hover:bg-gray-50 font-medium"
+                >
+                  {showTemplates ? "닫기" : "템플릿 불러오기"}
+                </button>
+                <button
+                  onClick={() => {
+                    const name = prompt("템플릿 이름:");
+                    if (name) {
+                      setTemplateName(name);
+                      fetch("/api/templates", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name, subject, body }),
+                      }).then(() => loadTemplates());
+                    }
+                  }}
+                  disabled={!subject.trim() && !body.trim()}
+                  className="text-sm px-3.5 py-1.5 bg-gray-800 text-white rounded-xl font-medium hover:bg-gray-900 disabled:opacity-40 active:scale-[0.98]"
+                >
+                  현재 내용 템플릿 저장
+                </button>
+              </div>
+            </div>
+
+            {/* Template list */}
+            {showTemplates && (
+              <div className="bg-white border border-gray-200/60 rounded-2xl shadow-sm overflow-hidden">
+                {savedTemplates.length === 0 ? (
+                  <div className="p-5 text-center text-sm text-gray-500">
+                    저장된 템플릿이 없습니다
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {savedTemplates.map((t) => (
+                      <div
+                        key={t.id}
+                        className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 cursor-pointer group"
+                        onClick={() => applyTemplate(t)}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-sm text-gray-900 truncate">
+                            {t.name}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate mt-0.5">
+                            {t.subject || "(제목 없음)"}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-3">
+                          <span className="text-xs text-gray-400">
+                            {new Date(t.createdAt).toLocaleDateString("ko-KR")}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`"${t.name}" 템플릿을 삭제하시겠습니까?`)) {
+                                deleteTemplate(t.id);
+                              }
+                            }}
+                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 p-1"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="bg-blue-50/80 border border-blue-200/60 rounded-2xl p-5">
               <p className="text-sm font-medium text-blue-800 mb-2">
